@@ -3,7 +3,7 @@
 $i18n = array(
   // plugin terms
     'PLUGIN_TITLE' => 'Centralized Users: Private Messages',
-    'PLUGIN_DESC' => 'A private messaging service for (c)users to communicate with other (c)users.',
+    'PLUGIN_DESC' => 'A private messaging service working in conjunction with Centralized Users',
     'PLUGIN_SIDEBAR' => 'Manage PMs Settings',
   
   // general
