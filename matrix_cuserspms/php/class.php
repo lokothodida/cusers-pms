@@ -66,10 +66,6 @@ class MatrixCUsersPMs {
       
       // load messages
       $this->parseURI();
-      if (in_array($this->config['pms-slug'], $this->uri) && isset($_SESSION['cuser'])) {
-        $this->msgs = $this->matrix->query('SELECT id, date FROM '.self::TABLE_PMS.' WHERE to = '.$_SESSION['cuser']['id'].' ORDER BY date DESC', 'MULTI', $cache=false);
-        $this->totalMsgs = count($this->msgs);
-      }
     }
   }
   
@@ -492,8 +488,11 @@ class MatrixCUsersPMs {
       
       if (in_array($this->config['pms-slug'], $this->uri) && $this->core->loggedIn()) {
         // parse uri and determine display type
-        
         $type = $this->pageType();
+  
+        // messages
+        $this->msgs = $this->matrix->query('SELECT id, date FROM '.self::TABLE_PMS.' WHERE to = '.$_SESSION['cuser']['id'].' ORDER BY date DESC', 'MULTI', $cache=false);
+        $this->totalMsgs = count($this->msgs);
         
         // global meta
         $data_index->template = $this->config['template'];
