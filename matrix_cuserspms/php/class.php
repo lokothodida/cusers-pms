@@ -89,8 +89,8 @@ class MatrixCUsersPMs {
   # check dependencies
   private function checkDependencies() {
     if (
-      (class_exists('TheMatrix') && TheMatrix::VERSION >= '1.02') &&
-      (class_exists('MatrixCUsers') && MatrixCUsers::VERSION >= '1.01') && 
+      (class_exists('TheMatrix') && TheMatrix::VERSION >= '1.03') &&
+      (class_exists('MatrixCUsers') && MatrixCUsers::VERSION >= '1.02') && 
       function_exists('i18n_init')
     ) return true;
     else return false;
@@ -100,10 +100,10 @@ class MatrixCUsersPMs {
   private function missingDependencies() {
     $dependencies = array();
     
-    if (!(class_exists('TheMatrix') && TheMatrix::VERSION >= '1.02')) {
-      $dependencies[] = array('name' => 'The Matrix (1.02+)', 'url' => 'https://github.com/n00dles/DM_matrix/');
+    if (!(class_exists('TheMatrix') && TheMatrix::VERSION >= '1.03')) {
+      $dependencies[] = array('name' => 'The Matrix (1.03+)', 'url' => 'https://github.com/n00dles/DM_matrix/');
     }
-    if (!(class_exists('MatrixCUsers') && MatrixCUsers::VERSION >= '1.01')) {
+    if (!(class_exists('MatrixCUsers') && MatrixCUsers::VERSION >= '1.02')) {
       $dependencies[] = array('name' => 'Centralized Users (1.01+)', 'url' => 'http://get-simple.info/extend/plugin/centralised-users/657/');
     }
     if (!function_exists('i18n_init')) {
@@ -291,7 +291,7 @@ class MatrixCUsersPMs {
               <img src="<?php echo $this->getPluginPath('img', false).'msg'; ?><?php if ($msg['read'] == 1) echo '_read'; ?>.png">
             </td>
             <td class="td1" style="width: 20%;"><a href="<?php echo $this->core->getProfileURL($this->core->users[$msg['from']]['username']); ?>"><?php echo $this->core->users[$msg['from']]['displayname']; ?></a></td>
-            <td class="td2" style="width: 18%;"><?php echo date($this->coreConfig['date-format'], $msg['date']); ?></td>
+            <td class="td2" style="width: 18%;"><?php echo date($this->coreConfig['date-format'], strtotime($msg['date'])); ?></td>
             <td class="td1" style="width: 60%;"><a href="<?php echo $this->getMessageURL($msg['id']); ?>"><?php echo $msg['subject']; ?></a></td>
             <td class="td2" style="width: 1%; text-align: center;"><input type="checkbox" name="messages[]" value="<?php echo $msg['id']; ?>"></td>
           </tr>
@@ -345,7 +345,7 @@ class MatrixCUsersPMs {
         <?php foreach ($msgs as $msg) { ?>
           <tr>
             <td class="td1" style="width: 20%;"><a href="<?php echo $this->core->getProfileURL($this->core->users[$msg['from']]['username']); ?>"><?php echo $this->core->users[$msg['from']]['displayname']; ?></a></td>
-            <td class="td2" style="width: 20%;"><?php echo date($this->coreConfig['date-format'], $msg['date']); ?></td>
+            <td class="td2" style="width: 20%;"><?php echo date($this->coreConfig['date-format'], strtotime($msg['date'])); ?></td>
             <td class="td1" style="width: 60%;"><a href="<?php echo $this->getMessageURL($msg['id']); ?>"><?php echo $msg['subject']; ?></a></td>
           </tr>
         <?php } ?>
@@ -463,7 +463,7 @@ class MatrixCUsersPMs {
             </tr>
             <tr>
               <th class="td2" style="width: 20%;"><?php echo i18n_r(self::FILE.'/DATE'); ?></th>
-              <td class="td1" style="width: 80%;"><?php echo date($this->coreConfig['date-format'], $msg['date']); ?></td>
+              <td class="td1" style="width: 80%;"><?php echo date($this->coreConfig['date-format'], strtotime($msg['date'])); ?></td>
             </tr>
             <tr>
               <th class="td2" style="width: 20%;"><?php echo i18n_r(self::FILE.'/CONTENT'); ?></th>
@@ -540,8 +540,40 @@ class MatrixCUsersPMs {
     }
   }
   
+  # compatibility
+  private function compatibility() {
+    $schema = $return = array();
+    $schema[self::TABLE_PMS] = $this->matrix->getSchema(self::TABLE_PMS);
+    $schema[self::TABLE_CONFIG] = $this->matrix->getSchema(self::TABLE_CONFIG);
+    
+    // descriptions to placeholders
+    if (
+      empty($schema[self::TABLE_CONFIG]['fields']['max-chars']['placeholder']) &&
+      !empty($schema[self::TABLE_CONFIG]['fields']['max-chars']['desc'])
+    ) {
+      $schema[self::TABLE_CONFIG]['fields']['max-chars']['placeholder'] = $schema[self::TABLE_CONFIG]['fields']['max-chars']['desc'];
+      $schema[self::TABLE_CONFIG]['fields']['max-chars']['desc'] = '';
+    }
+    if (
+      empty($schema[self::TABLE_CONFIG]['fields']['max-title']['placeholder']) &&
+      !empty($schema[self::TABLE_CONFIG]['fields']['max-title']['desc'])
+    ) {
+      $schema[self::TABLE_CONFIG]['fields']['max-title']['placeholder'] = $schema[self::TABLE_CONFIG]['fields']['max-title']['desc'];
+      $schema[self::TABLE_CONFIG]['fields']['max-title']['desc'] = '';
+    }
+    
+    // final modding of schema
+    foreach ($schema as $table => $array) {
+      $return[] = $this->matrix->modSchema($table, $array);
+    }
+    if (!in_array(false, $return)) return true;
+    else return false;
+  }
+  
   # admin
   public function admin() {
+    $url = 'load.php?id='.self::FILE;
+    
     if ($this->checkDependencies()) {
       // save changes
       if ($_SERVER['REQUEST_METHOD']=='POST') {
@@ -574,8 +606,27 @@ class MatrixCUsersPMs {
         // refresh the index to reflect the changes
         $this->matrix->refreshIndex();
       }
+      // compatibility fix changes
+      elseif (isset($_GET['compatibility'])) {
+        // undo the record update
+        $compat = $this->compatibility();
+        
+        // success message
+        if ($compat) {
+          $this->matrix->getAdminError(i18n_r(MatrixCUsers::FILE.'/COMPATIBILITY_SUCCESS'), true);
+        }
+        // error message
+        else {
+          $this->matrix->getAdminError(i18n_r(MatrixCUsers::FILE.'/COMPATIBILITY_ERROR'), false);
+        }
+      }
     ?>
-    <h3><?php echo i18n_r(self::FILE.'/PRIVATEMSGS'); ?> (<?php echo i18n_r(self::FILE.'/CONFIG'); ?>)</h3>
+    <h3 class="floated"><?php echo i18n_r(self::FILE.'/PRIVATEMSGS'); ?> (<?php echo i18n_r(self::FILE.'/CONFIG'); ?>)</h3>
+    
+    <div class="edit-nav">
+      <a href="<?php echo $url; ?>&compatibility"><?php echo i18n_r(MatrixCUsers::FILE.'/COMPATIBILITY'); ?></a>
+      <div class="clear"></div>
+    </div>
     
     <form method="post">
       <?php $this->matrix->displayForm(self::TABLE_CONFIG, 0); ?>
